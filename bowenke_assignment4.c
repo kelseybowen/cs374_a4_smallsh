@@ -2,9 +2,13 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 #define INPUT_LENGTH 2048
 #define MAX_ARGS 512
+
+int prev_exit_status = 0;
 
 struct command_line {
     char *argv[MAX_ARGS + 1];
@@ -25,8 +29,37 @@ int main() {
     struct command_line *curr_command;
     while(true) {
         curr_command = parse_input();
+
+        // blank lines & comments ------------------------
+        if (curr_command->argc == 0 || curr_command->argv[0][0] == '#') {
+            free_command_line(curr_command);
+            continue;
+        }
+        // exit ------------------------------------------
+        if (!strcmp(curr_command->argv[0], "exit")) {
+            free_command_line(curr_command);
+            exit(0);
+
+        // cd ---------------------------------------------
+        } else if (!strcmp(curr_command->argv[0], "cd")) {
+            if (curr_command->argc == 1) {
+                chdir(getenv("HOME"));
+            } else {
+                chdir(curr_command->argv[1]);
+            }
+        // status -----------------------------------------
+        } else if (!strcmp(curr_command->argv[0], "status")) {
+            if (WIFEXITED(prev_exit_status)) {
+                printf("exit value %d\n", WEXITSTATUS(prev_exit_status));
+            } else {
+                printf("terminated by signam %d\n", WTERMSIG(prev_exit_status));
+            }
+        // other commands
+        } else {
+            printf("other commands block\n");
+        }
+        free_command_line(curr_command);
     }
-    free_command_line(curr_command);
     return EXIT_SUCCESS;
 }
 
@@ -52,8 +85,6 @@ struct command_line *parse_input() {
             curr_command->output_file = strdup(strtok(NULL," \n"));
         } else if(!strcmp(token,"&")){
             curr_command->is_bg = true;
-        } else if(!strcmp(token, "exit")){
-            exit(0);
         } else{
             curr_command->argv[curr_command->argc++] = strdup(token);
         }

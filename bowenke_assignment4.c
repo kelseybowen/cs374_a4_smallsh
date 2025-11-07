@@ -23,7 +23,6 @@ struct command_line *parse_input();
 void free_command_line(struct command_line *command);
 
 
-
 // ------------------- MAIN PROGRAM ---------------------
 int main() {
     struct command_line *curr_command;
@@ -54,9 +53,24 @@ int main() {
             } else {
                 printf("terminated by signam %d\n", WTERMSIG(prev_exit_status));
             }
-        // other commands
+        // other commands -----------------------------------------
         } else {
-            printf("other commands block\n");
+            pid_t childPid = fork();
+
+            if (childPid == -1) {
+                perror("fork");
+            }
+            else if (childPid == 0) {
+                execvp(curr_command->argv[0], curr_command->argv);
+                perror("execvp");
+                exit(1);
+            } else {
+                // store previous exit status after child process finishes
+                waitpid(childPid, &prev_exit_status, 0);
+                if (WIFSIGNALED(prev_exit_status)) {
+                    printf("terminated by signal %d\n", WTERMSIG(prev_exit_status));
+                }
+            } 
         }
         free_command_line(curr_command);
     }

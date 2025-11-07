@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #define INPUT_LENGTH 2048
 #define MAX_ARGS 512
@@ -61,8 +62,36 @@ int main() {
                 perror("fork");
             }
             else if (childPid == 0) {
+                // redirect input
+                if (curr_command->input_file) {
+                    int in_fd = open(curr_command->input_file, O_RDONLY);
+                    if (in_fd == -1) { 
+                        perror("there was a problem opening the input file"); 
+                        exit(1);
+                    }
+                    int result = dup2(in_fd, 0);
+                    if (result == -1) {
+                        perror("dup2 input"); 
+                        exit(1); 
+                    }
+                    close(in_fd);
+                }
+                // redirect output
+                if (curr_command->output_file) {
+                    int out_fd = open(curr_command->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (out_fd == -1) { 
+                        perror("there was a problem opening the output file"); 
+                        exit(1); 
+                    }
+                    int result = dup2(out_fd, 1);
+                    if (result == -1) {
+                        perror("dup2 output"); 
+                        exit(1); 
+                    }
+                    close(out_fd);
+                }
                 execvp(curr_command->argv[0], curr_command->argv);
-                perror("execvp");
+                perror(curr_command->argv[0]);
                 exit(1);
             } else {
                 // store previous exit status after child process finishes
